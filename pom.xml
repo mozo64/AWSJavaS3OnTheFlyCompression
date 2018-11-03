@@ -29,6 +29,11 @@
             <artifactId>guava</artifactId>
             <version>LATEST</version>
         </dependency>
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-java-sdk-s3</artifactId>
+            <version>1.11.91</version>
+        </dependency>
 
     </dependencies>
 

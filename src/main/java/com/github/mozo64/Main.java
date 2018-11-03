@@ -3,9 +3,12 @@ package com.github.mozo64;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.google.common.base.Preconditions;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
@@ -19,15 +22,18 @@ import java.util.zip.GZIPOutputStream;
 public class Main {
 
     private static final String BUCKET_NAME = "apps-mozo";
-    private static final String FILE = "test_file_2";
+    private static final String FILE = "test_file_3";
+    private final static String EXTENSION_GZ = ".gz";
     private static final int GUID_PER_THREAD = 50_000;
     private final static Character LINE_SEPARATOR = '\n';
+    private static final int WRITE_THREADS = 3;
 
     public static void main(String[] args) throws IOException, InterruptedException {
 
         AmazonS3Client s3client = getS3Client();
 //        uploadTestFile(BUCKET_NAME, FILE, s3client, GUID_PER_THREAD);
-        uploadTestFileEasyVersion(BUCKET_NAME, FILE, s3client, GUID_PER_THREAD);
+//        uploadTestFileEasyVersion(BUCKET_NAME, FILE, s3client, GUID_PER_THREAD);
+        uploadTestFileReallyEasyVersion(BUCKET_NAME, FILE, s3client, GUID_PER_THREAD);
         HashMap<Integer, HashMap<Long, BigDecimal>> fromS3 = getFromS3(BUCKET_NAME, FILE, s3client);
 
         System.out.print("This is the end");
@@ -40,10 +46,9 @@ public class Main {
     }
 
     private static void uploadTestFile(String bucketName, String file, AmazonS3Client s3client, int guidPerThread) throws IOException, InterruptedException {
-        int writeThreads = 3;
         int genThreads = 10;
 
-        try (S3UploadStreamer uploadStreamer = new S3UploadStreamer(s3client, bucketName, file + ".gz", writeThreads)) {
+        try (S3UploadStreamer uploadStreamer = new S3UploadStreamer(s3client, bucketName, file + EXTENSION_GZ, WRITE_THREADS)) {
             try (GZIPOutputStream stream = new GZIPOutputStream(uploadStreamer)) {
                 Semaphore s = new Semaphore(0);
                 for (int t = 0; t < genThreads; ++t) {
@@ -64,7 +69,7 @@ public class Main {
     }
 
     private static void uploadTestFileEasyVersion(String bucketName, String file, AmazonS3Client s3client, int guidPerThread) throws IOException, InterruptedException {
-        try (S3UploadStreamer uploadStreamer = new S3UploadStreamer(s3client, bucketName, file + ".gz", 1)) {
+        try (S3UploadStreamer uploadStreamer = new S3UploadStreamer(s3client, bucketName, file + EXTENSION_GZ, 1)) {
             try (GZIPOutputStream stream = new GZIPOutputStream(uploadStreamer)) {
                 try {
                     for (int i = 0; i < guidPerThread; ++i) {
@@ -75,6 +80,26 @@ public class Main {
             }
         }
     }
+
+    private static void uploadTestFileReallyEasyVersion(String bucketName, String file, AmazonS3Client s3client, int guidPerThread) throws IOException, InterruptedException {
+        File tempFile = File.createTempFile("rfm_customer_segmentation_" + 1234 + "_", ".tmp" + EXTENSION_GZ);
+        try (GZIPOutputStream bufferedWriter = new GZIPOutputStream(new FileOutputStream(tempFile, true))) {
+            bufferedWriter.write(("\'segment\';\'customer_id\';\'basePaymentValue\'" + LINE_SEPARATOR).getBytes());
+
+            for (int i = 0; i < guidPerThread; ++i) {
+                bufferedWriter.write(nextCSVRow().getBytes());
+            }
+
+        } finally {
+            PutObjectRequest request = new PutObjectRequest(BUCKET_NAME, FILE + EXTENSION_GZ, tempFile);
+            s3client.putObject(request);
+
+            if (tempFile.exists()) {
+                tempFile.delete();
+            }
+        }
+    }
+
 
     private static String nextCSVRow() {
         Random r = new Random();
@@ -91,7 +116,7 @@ public class Main {
     private static HashMap<Integer, HashMap<Long, BigDecimal>> getFromS3(String bucketName, String file, AmazonS3Client s3client) throws IOException {
         HashMap<Integer, HashMap<Long, BigDecimal>> customerIdsAndValuesByRfmSegment = new HashMap<>();
 
-        try (S3Object object = s3client.getObject(new GetObjectRequest(bucketName, file + ".gz"));
+        try (S3Object object = s3client.getObject(new GetObjectRequest(bucketName, file + EXTENSION_GZ));
              InputStream input = object.getObjectContent();) {
 
             Scanner scanner = new Scanner(new GZIPInputStream(input));
