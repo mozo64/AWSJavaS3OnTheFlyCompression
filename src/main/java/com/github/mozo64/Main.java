@@ -7,10 +7,7 @@ import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.google.common.base.Preconditions;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Random;
@@ -22,7 +19,7 @@ import java.util.zip.GZIPOutputStream;
 public class Main {
 
     private static final String BUCKET_NAME = "apps-mozo";
-    private static final String FILE = "test_file_3";
+    private static final String FILE = "test_file_4";
     private final static String EXTENSION_GZ = ".gz";
     private static final int GUID_PER_THREAD = 50_000;
     private final static Character LINE_SEPARATOR = '\n';
@@ -83,11 +80,11 @@ public class Main {
 
     private static void uploadTestFileReallyEasyVersion(String bucketName, String file, AmazonS3Client s3client, int guidPerThread) throws IOException, InterruptedException {
         File tempFile = File.createTempFile("rfm_customer_segmentation_" + 1234 + "_", ".tmp" + EXTENSION_GZ);
-        try (GZIPOutputStream bufferedWriter = new GZIPOutputStream(new FileOutputStream(tempFile, true))) {
-            bufferedWriter.write(("\'segment\';\'customer_id\';\'basePaymentValue\'" + LINE_SEPARATOR).getBytes());
+        try (Writer bufferedWriter = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(tempFile, true))))) {
+            bufferedWriter.write("\'segment\';\'customer_id\';\'basePaymentValue\'" + LINE_SEPARATOR);
 
             for (int i = 0; i < guidPerThread; ++i) {
-                bufferedWriter.write(nextCSVRow().getBytes());
+                bufferedWriter.write(nextCSVRow());
             }
 
         } finally {
